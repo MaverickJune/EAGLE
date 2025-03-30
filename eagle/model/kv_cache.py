@@ -1,5 +1,5 @@
 import torch
-
+import sys
 
 class KVCache:
     """
@@ -133,6 +133,12 @@ def initialize_past_key_values(model):
 
     bias=0
     start_data_m=devices[0].index
+    
+    # Debugging code
+    # TODO: check what does index attribute of the device is
+    # print(devices[0].index)
+    # sys.exit(0)
+    
     for i in range(config.num_hidden_layers):
         data_m=devices[i].index
         if data_m!=start_data_m:

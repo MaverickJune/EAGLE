@@ -107,6 +107,8 @@ class EaModel(nn.Module):
         configpath=os.path.join(ea_model_path,"config.json")
         if not os.path.exists(configpath):
             configpath = hf_hub_download(ea_model_path, "config.json")
+            
+        # print(f"base model device map: {base_model.hf_device_map}")
 
         try:
             load_model_path=os.path.join(ea_model_path, "pytorch_model.bin")
@@ -114,12 +116,16 @@ class EaModel(nn.Module):
                 load_model_path=hf_hub_download(ea_model_path, "pytorch_model.bin")
             ea_layer_state_dict = torch.load(load_model_path,
                                              map_location=base_model.device)
+            # print(f"activated part 1")
+            # print(f"base model device: {base_model.device}")
         except:
             from safetensors.torch import load_file
             load_model_path = os.path.join(ea_model_path, "model.safetensors")
             if not os.path.exists(load_model_path):
                 load_model_path = hf_hub_download(ea_model_path, "model.safetensors")
             ea_layer_state_dict = load_file(load_model_path)
+            # print(f"activated part 2")
+            
         model = cls(
             base_model,
             base_model_path,
@@ -229,6 +235,7 @@ class EaModel(nn.Module):
                 past_key_values_data,
                 current_length_data,
             ) = initialize_past_key_values(self.base_model)
+            # print(len(past_key_values_data))
             self.past_key_values = past_key_values
             self.past_key_values_data = past_key_values_data
             self.current_length_data = current_length_data
@@ -256,9 +263,11 @@ class EaModel(nn.Module):
             )
             #retrieve_indices=tree_buffers["retrieve_indices"]
             #logits = logits[0, retrieve_indices]
+            # print(f"draft_tokens shape in here: {draft_tokens.shape}")
             draft_tokens=torch.cat((draft_tokens,padding),dim=1)
             candidates=draft_tokens[0,retrieve_indices]
-            best_candidate, accept_length, sample_p = evaluate_posterior(
+            # print(f"candidates shape in here: {candidates.shape}")
+            best_candidate, accept_length, sample_p = evaluate_posterior( 
                 logits, candidates, logits_processor
             )
             # print(accept_length)

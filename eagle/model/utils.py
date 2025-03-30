@@ -6,6 +6,8 @@ from typing import List, Tuple
 import time
 import torch
 
+import sys
+
 # TODO
 # from transformers import LlamaTokenizer
 # tokenizer=LlamaTokenizer.from_pretrained("/home/lyh/weights/hf/vicuna_v13/7B/")
@@ -314,14 +316,23 @@ def tree_decoding(
         past_key_values=past_key_values,
         position_ids=position_ids,
     )
-
+    
+    # print(f"original logits shape: {tree_logits.shape}")
 
     logits = tree_logits[0, retrieve_indices]
+    
+    # Debugging Code
+    # TODO: check the shape of logits and retrieve_indices
+    # print("logits shape: ", logits.shape)
+    # print("retrieve_indices shape: ", retrieve_indices.shape)
+    # print("retrieve_indices: ", retrieve_indices)
+    # print("logits: ", logits)
+                  
     return logits, hidden_state, outputs
 
 
 
-
+   
 
 def evaluate_posterior(
         logits: torch.Tensor,
@@ -346,6 +357,15 @@ def evaluate_posterior(
     - accept_length (int): Length of the accepted candidate sequence.
     """
     # Greedy decoding based on temperature value
+    
+    # Debugging Code
+    # print(f"argmax_shape: {torch.argmax(logits[:, :-1], dim=-1).shape}")
+    # print(f"candidates_shape: {candidates[:, 1:].shape}")
+    # posterior_mask = (
+    #         candidates[:, 1:].to(logits.device) == torch.argmax(logits[:, :-1], dim=-1)
+    # ).int()
+    # print(f"posterior_mask_shape: {posterior_mask.shape}")
+    
     if logits_processor is None:
         # Find the tokens that match the maximum logits for each position in the sequence
         posterior_mask = (
@@ -364,6 +384,7 @@ def evaluate_posterior(
     else:
         accept_length = 1
         accept_cand = candidates[0][:1]
+        # print(f"accept_cand: {accept_cand}")
         best_candidate = 0
         for i in range(1, candidates.shape[1]):
             if i != accept_length:
@@ -371,6 +392,8 @@ def evaluate_posterior(
             adjustflag = False
             is_eq = (candidates[:, :accept_length] == accept_cand).all(dim=1)
             fi = torch.nonzero(is_eq, as_tuple=True)[0][0]
+            # print(f"is_eq: {is_eq}")
+            # print(f"fi: {fi}")
             gt_logits = logits[fi, i - 1][None]
             gt_logits = logits_processor(None, gt_logits)[0]
             gtp = torch.softmax(gt_logits, dim=0)
@@ -427,6 +450,7 @@ def update_inference_inputs(
     input_ids = torch.cat(
         [input_ids, candidates[None, best_candidate, : accept_length + 1].to(input_ids.device)], dim=-1
     )
+    
     # Update the past key values based on the selected tokens
     # Source tensor that contains relevant past information based on the selected candidate
     for past_key_values_data in past_key_values_data_list:

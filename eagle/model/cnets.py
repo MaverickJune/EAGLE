@@ -41,6 +41,14 @@ except:
     from utils import prepare_logits_processor
 
 
+# Get the logger
+from eagle.log_config import get_logger
+logger = get_logger(__name__)
+
+# Fort debugging purposes
+import sys
+
+
 
 
 # Copied from transformers.models.bart.modeling_bart._make_causal_mask
@@ -699,6 +707,10 @@ class Model(nn.Module):
         input_hidden = last_hidden[None].repeat(1, top_k, 1)
         tree_mask = self.tree_mask_init
         topk_cs_index = torch.arange(top_k, device=self.embed_tokens.weight.device)
+        
+        # logger.info(f"initial score: {scores}")
+        # logger.info(f"initial tree_mask: {tree_mask}")
+        # logger.info(f"shape of output: {out_hidden.shape}")
 
         # 4
         for i in range(depth):
@@ -723,23 +735,36 @@ class Model(nn.Module):
             topk_index, topk_p = top.indices, top.values
 
             cu_scores = topk_p + scores[:, None]
+            
+            # logger.info(f"{i}th cu_scores: {cu_scores}")
 
             topk_cs = torch.topk(cu_scores.view(-1), top_k, dim=-1)
             topk_cs_index, topk_cs_p = topk_cs.indices, topk_cs.values
             scores = topk_cs_p
 
             out_ids = topk_cs_index // top_k
+            
+            # logger.info(f"{i}th out_ids: {out_ids}")
+            # logger.info(f"{i}th topk_cs_index: {topk_cs_index}")
+            # logger.info(f"{i}th topk_index: {topk_index}")
+            
             input_hidden = out_hidden[:, out_ids]
             # with Timer("2index"):
             #     in_ids = topk_cs_index % top_k
             #     input_ids = topk_index[out_ids, in_ids][None]
             # with Timer("1index"):
             input_ids = topk_index.view(-1)[topk_cs_index][None]
+            
+            # logger.info(f"{i}th input_ids: {input_ids}")
+            
+            
             # print(input_ids.equal(input_ids0))
 
             ss_token.append(topk_index)
             scores_list.append(cu_scores)
             tree_mask = torch.cat((tree_mask[:, :, out_ids], self.tree_mask_init), dim=3)
+            
+            # logger.info(f"{i}th tree_mask: {tree_mask}")
 
             # if self.threshold < 0 and cu_scores.max() < self.threshold:
             #     break
@@ -748,10 +773,19 @@ class Model(nn.Module):
         # return draft_tokens, mask_index,tree_mask,tree_position_ids
 
         # with Timer("post"):
+        
+        # sys.exit(0)
 
         scores_list = torch.cat(scores_list, dim=0).view(-1)
         ss_token_list = torch.cat(ss_token, dim=0).view(-1)
         top_scores = torch.topk(scores_list, total_tokens, dim=-1)
+        
+        # logger.info(f"shape of scores_list: {scores_list.shape}")
+        # logger.info(f"shape of ss_token_list: {ss_token_list.shape}")
+        # logger.info(f"shape of top_scores: {top_scores.values.shape}")
+        
+        # sys.exit(0)
+        
         top_scores_index = top_scores.indices
         top_scores_index = torch.sort(top_scores_index).values
 
@@ -822,7 +856,7 @@ class Model(nn.Module):
                 for i in range(len(lst)):
                     sort_keys.append(lst[i] if lst[i] >= 0 else maxitem)
                 return sort_keys
-
+          
             retrieve_indices = sorted(retrieve_indices, key=custom_sort)
 
         retrieve_indices = torch.tensor(retrieve_indices, dtype=torch.long)
